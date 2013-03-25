@@ -1,0 +1,9 @@
+{
+  "name": "node-turntable", 
+  "version": "0.0.1",
+  "dependencies": {
+    "devnull": ">= 0.0.1",
+    "express": "3.x",
+    "gpio" : "*"
+  }
+}
