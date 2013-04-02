@@ -4,6 +4,7 @@
   "dependencies": {
     "devnull": ">= 0.0.1",
     "express": "3.x",
-    "gpio" : "*"
+    "gpio" : "*",
+    "async" : "*"
   }
 }
