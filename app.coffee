@@ -24,8 +24,8 @@ async.parallel
     turntable = new Turntable new LoggablePort logger, turntablePort
 
     setTimeout (-> 
-      powerLedPort.set 0
-      powerLedPort.set 1
+      results.powerLedPort.set 0
+      results.powerLedPort.set 1
       turntablePort.set 0
       turntablePort.set 1),
       100
