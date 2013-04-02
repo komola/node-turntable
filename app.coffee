@@ -6,49 +6,61 @@ async = require "async"
 
 logger.log "Running"
 
-turntable = null
-
-gpio = require "gpio"
 
 
-exportOut = (portNumber) ->
-  (callback) -> port = gpio.export portNumber, direction: "out", ready: -> callback null, port
 
-
-async.parallel
-  turntablePort:    exportOut 7
-  powerLedPort:     exportOut 10
-  isTurningLedPort: exportOut 21
-  (err, results) ->
-    turntablePort = new PortFork results.turntablePort, results.isTurningLedPort
-    turntable = new Turntable new LoggablePort logger, turntablePort
-
-    setTimeout (-> 
-      results.powerLedPort.set 0
-      results.powerLedPort.set 1
-      turntablePort.set 0
-      turntablePort.set 1),
-      100
-
-
-class PortFork
-  constructor: (gpio1, gpio2) ->
-    @_gpio1 = gpio1
-    @_gpio2 = gpio2
+class InvertedPort
+  constructor: (gpio) ->
+    @_gpio = gpio
 
   set: (value) =>
-    @_gpio1.set value
-    @_gpio2.set value
+    @_gpio.set 1 - value
+
+
+class ObservablePort extends events.EventEmitter
+  set: (value) =>
+    @emit "set", value
 
 
 class LoggablePort
-  constructor: (logger, gpio) ->
+  constructor: (name, logger, gpio) ->
+    @_name = name
     @_gpio = gpio
     @_logger = logger
 
   set: (value) =>
     @_gpio.set value
-    @_logger.log "Switching to ", value
+    @_logger.log @_name, "Switching " + @_name + " to " + value
+
+
+
+class Pulsar
+  constructor: (gpio, onInterval, offInterval) ->
+    @_gpio = gpio
+    @_onInterval = onInterval
+    @_offInterval = offInterval
+    @_timer = null
+    @_blink()
+
+  _blink: =>
+    @_gpio.set 1
+    @_timer = setTimeout (=> 
+      @_gpio.set 0
+      @_timer = setTimeout @_blink, @_offInterval
+      ), @_onInterval
+
+
+  setOnInterval: (onInterval) =>
+    @_onInterval = onInterval
+    clearTimeout @_timer
+    @_blink()
+
+  setOffInterval: (offInterval) =>
+    @_offInterval = offInterval
+    clearTimeout @_timer
+    @_blink()
+  
+
 
 
 
@@ -58,9 +70,9 @@ class Turntable
     @_outputPort = outputPort
 
   turnBy: (time, callback) =>
-    @_outputPort.set 0
+    @_outputPort.set 1
     setTimeout (=> 
-        @_outputPort.set 1
+        @_outputPort.set 0
         callback()
       ), 
       time - 25 ## to compensate the setTimout delay of about 25ms
@@ -69,10 +81,47 @@ class Turntable
 
 
 
+turntable = null
+
+gpio = require "gpio"
+
+exportOut = (portNumber) ->
+  (callback) ->
+    port = undefined
+    options =
+      direction: "out"
+      ready: -> callback null, port
+    port = gpio.export portNumber, options
+
+
+async.parallel
+  turntablePort:    exportOut 7
+  powerLedPort:     exportOut 10
+
+, (err, results) ->
+    originTurntablePort = new InvertedPort results.turntablePort
+    originTurntablePort = new LoggablePort "turntable port", logger, originTurntablePort
+
+    powerLedPulsar = new Pulsar results.powerLedPort, 300, 1700
+
+    turntablePort = new ObservablePort()
+    turntablePort.on "set", (value) ->
+      powerLedPulsar.setOffInterval if value == 1 then 200 else 1700
+    turntablePort.on "set", originTurntablePort.set
+
+
+    turntable = new Turntable turntablePort
+
+    setTimeout (-> 
+      originTurntablePort.set 1
+      originTurntablePort.set 0),
+      100
+
+
+
 app = express()
 
 app.configure ->
-  
   app.use express.bodyParser()
   app.use express.methodOverride()  
   app.use app.router
@@ -104,4 +153,6 @@ app.get "/turntable/turnBy/:time", (req, res) ->
     res.setHeader 'Content-Length', body.length
     res.end body
 
-app.listen 4243
+serverPort = 4243
+app.listen serverPort
+logger.log "Listening on port " + serverPort
