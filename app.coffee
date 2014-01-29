@@ -131,7 +131,7 @@ app.configure ->
 
 
 app.post "/turntable/turnBy", (req, res) ->
-  
+  req.connection.setTimeout 0
   turntable.turnBy req.body.time, =>
     body = '{ "result" : "successful" }'
     res.setHeader 'Content-Type', 'text/plain'
@@ -147,6 +147,7 @@ app.get "/status", (req, res) ->
   res.end body
 
 app.get "/turntable/turnBy/:time", (req, res) ->
+  req.connection.setTimeout 0
   turntable.turnBy req.params.time, =>
     body = 'Finished'
     res.setHeader 'Content-Type', 'text/plain'
