@@ -31,6 +31,8 @@ async.series [
       databits: 8
       stopbits: 1
       parity: 'none'
+      bitmode: 0x04
+      bitmask: 0xff
     device.open deviceOptions, (err) =>
 
       device.on "data", (data) =>
